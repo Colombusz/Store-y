@@ -2,26 +2,5 @@
   "name": "store-y",
   "version": "0.0.0",
   "private": true,
-  "description": "Store-y — Story World Engine (local-first worldbuilding for fiction writers)",
-  "workspaces": [
-    "backend",
-    "frontend",
-    "packages/*"
-  ],
-  "scripts": {
-    "dev": "concurrently -k -n api,web -c blue,magenta \"npm run dev -w @storey/backend\" \"npm run dev -w @storey/frontend\"",
-    "dev:api": "npm run dev -w @storey/backend",
-    "dev:web": "npm run dev -w @storey/frontend",
-    "build": "npm run build --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
-    "test:watch": "npm run test:watch --workspaces --if-present",
-    "db:start": "npm run db:start -w @storey/backend",
-    "db:indexes": "npm run db:indexes -w @storey/backend",
-    "db:shell": "npm run db:shell -w @storey/backend",
-    "seed": "npm run seed -w @storey/backend"
-  },
-  "devDependencies": {
-    "concurrently": "10.0.5"
-  }
+  "description": "Store-y — Story World Engine (local-first worldbuilding for fiction writers)"
 }

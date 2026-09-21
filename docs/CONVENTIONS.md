@@ -116,7 +116,7 @@ A `<Name>Page.tsx` is a **composition root**: layout, wiring data to components,
 
 | Layer | Tool | What to test |
 |-------|------|--------------|
-| `packages/shared` | Vitest | Pure maths: area scaling, H3 conversion round-trips, calendar `order` maths, spoiler filtering, geometry helpers, relationship-fold fixtures, schema upgraders. **These are the highest-value tests in the repo.** |
+| `backend/src/contract/` | Vitest | Pure maths: area scaling, H3 conversion round-trips, calendar `order` maths, spoiler filtering, geometry helpers, relationship-fold fixtures, schema upgraders. **These are the highest-value tests in the repo.** |
 | `backend/src/lib` | Vitest | Calendar, revisions, geometry validation, embedded-edit operators. |
 | Backend services | Vitest + a scratch database on the local replica set | Business rules with a real (throwaway) database — cycles, containment, target fitting, export filtering, transaction commit/rollback. Tear down with `dropDatabase()`. |
 | Backend repos | Vitest + the test database | Each declared index in `indexes.ts` is actually used: explain winning plans for the five hottest queries (region commit, subtree list, fold read, `$text` search, point-in-polygon assignment). |
@@ -167,7 +167,7 @@ There is no "except for the file that obviously needs it". If a file needs to be
 The moment a file approaches a budget (don't wait for the violation), split it using the escalation ladder:
 
 1. **Extract a sub-module** — `regions.service.ts` splits into `regions.service.ts` + `region-hierarchy.ts` when hierarchy validation outgrows its host. Same folder, same naming rules (§2).
-2. **Extract a `lib/` helper** — pure logic with no I/O (`cellsToMultiPolygon` maths, calendar arithmetic) moves to the module's `lib/` folder with its own tests. Anything two modules need graduates to `packages/shared` or `backend/src/lib/`.
+2. **Extract a `lib/` helper** — pure logic with no I/O (`cellsToMultiPolygon` maths, calendar arithmetic) moves to the module's `lib/` folder with its own tests. Anything two modules need graduates to `backend/src/contract/` or `backend/src/lib/`.
 3. **Promote to a folder with an `index.ts` barrel.** A file that keeps growing becomes a folder with the same name; callers change nothing:
    ```
    modules/export/

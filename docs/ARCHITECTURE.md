@@ -14,7 +14,7 @@ How Store-y is assembled, why the boundaries fall where they do, and how data mo
 │                 │                                                    │
 │        ┌────────┴─────────┐                                          │
 │        │ TanStack Query   │  server state (regions, events, …)       │
-│        │ Zustand          │  UI state (tool, camera, asOf, spoiler)  │
+│        │ Redux Toolkit    │  UI state (tool, camera, asOf, spoiler)  │
 │        └────────┬─────────┘                                          │
 │                 │                                                    │
 │      react-globe.gl (WebGL)   @xyflow/react + d3-force (graph)       │
@@ -27,33 +27,33 @@ How Store-y is assembled, why the boundaries fall where they do, and how data mo
 │  routes ──► service ──► repo ──► mongodb driver ──► local mongod (RS)      │
 │    │          │           │                                                    │
 │  Zod parse  rules/     typed BSON              backend/data/mongo              │
-│  (shared)   sessions                                                           │
+│  (contract) sessions                                                          │
 │                                                                      │
-│  lib/: calendar.ts · spoiler.ts · geometry.ts · revisions.ts         │
-│  modules/export/: IR ──► md | docx | epub | pdf | geojson | json     │
-│  packages/shared: zod schemas · types · geo (h3, area, projection)   │
+│  src/contract/: zod schemas · types · geo (h3, area, projection)    │
+│  src/lib/: calendar.ts · spoiler.ts · geometry.ts · revisions.ts     │
+│  src/modules/export/: IR ──► md | docx | epub | pdf | geojson | json │
 └──────────────────────────────────────────────────────────────────────┘
                  │
         backend/data/uploads/  (textures, portraits, attachments)
 ```
 
-**Development.** `npm run db:start` starts the project's `mongod` as a single-node replica set (ADR-0015); `npm run dev` starts the API on `:4000` and Vite on `:5173`. Vite proxies `/api/*` to the API, so the browser sees one origin and CORS is never needed.
+**Development.** `cd backend && npm run db:start` starts the project's `mongod` as a single-node replica set (ADR-0015); `cd backend && npm run dev` starts the API on `:4000` and `cd frontend && npm run dev` starts Vite on `:5173`. Vite proxies `/api/*` to the API, so the browser sees one origin and CORS is never needed.
 
-**Production (v1).** `npm run build` emits `frontend/dist`; the API serves it via `@fastify/static` alongside `/api/v1` and `/uploads`. One process, one port, no external services.
+**Production (v1).** `cd backend && npm run build` emits `backend/dist`; the API serves it via `@fastify/static` alongside `/api/v1` and `/uploads`. One process, one port, no external services.
 
-## 2. Workspace boundaries
+## 2. Package boundaries
 
-| Workspace | May import | Must never import |
-|-----------|-----------|-------------------|
-| `packages/shared` | only `zod`, `h3-js`, granular turf packages | backend, frontend |
-| `backend` | `packages/shared` | `frontend` |
-| `frontend` | `packages/shared` | `backend` |
+| Package | May import | Must never import |
+|---------|-----------|-------------------|
+| `backend/src/contract/` | only `zod`, `h3-js`, granular turf packages | backend app code, frontend |
+| `backend/` (rest) | `backend/src/contract/` | `frontend` |
+| `frontend/` | nothing from backend (reads types from API responses) | `backend` |
 
-`packages/shared` is deliberately dependency-light: it is bundled into both the browser and the server, so a heavy import there costs twice.
+`backend/src/contract/` is deliberately dependency-light: it holds Zod schemas, inferred types, enum constants, and **pure** maths — `geo/h3.ts`, `geo/area.ts`, `geo/projection.ts`, `dates/calendar.ts`, `spoiler.ts`. Pure functions with no I/O, trivially testable. It is not bundled into the browser (the frontend gets types from API responses, not from this package).
 
-**Belongs in `shared`:** Zod schemas, inferred types, enum constants (region kinds, relation types, error codes), and **pure** maths — `geo/h3.ts`, `geo/area.ts`, `geo/projection.ts`, `dates/calendar.ts`, `spoiler.ts`. Pure functions with no I/O, trivially testable, safe on either side.
+**Belongs in `contract`:** Zod schemas, inferred types, enum constants (region kinds, relation types, error codes), and **pure** maths — `geo/h3.ts`, `geo/area.ts`, `geo/projection.ts`, `dates/calendar.ts`, `spoiler.ts`. Pure functions with no I/O, trivially testable.
 
-**Does not belong in `shared`:** anything touching the DB, the filesystem, or a React component.
+**Does not belong in `contract`:** anything touching the DB, the filesystem, or a React component.
 
 ## 3. Request lifecycle (a write)
 
@@ -95,7 +95,7 @@ pointer event ──► ray–sphere intersection ──► toGeoCoords() ──
                                                                     │
                                     h3.latLngToCell(lat,lng,res) → "8a2a1072b59ffff"
                                                                     │
-                                            draft cell set (Zustand)
+                                            draft cell set (Redux store)
                                                                     │
                                        POST /bulk/cells  →  compactCells()
                                                                     │

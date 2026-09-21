@@ -29,8 +29,9 @@ Versions below were resolved from the live npm registry on the project's dev mac
 | UI | radix-ui | 1.6.7 | MIT | Unified primitives package. |
 | UI | class-variance-authority / tailwind-merge / clsx | 0.7.1 / 3.7.0 / 2.1.1 | MIT | Styling utilities. |
 | UI | lucide-react | 1.47.0 | ISC | Icons. |
+| UI state | @reduxjs/toolkit | 2.12.0 | MIT | Redux Toolkit — UI state via slices (`createSlice`), store via `configureStore`. |
+| UI state | react-redux | 9.3.0 | MIT | Typed hooks (`useDispatch`/`useSelector` bindings); peer `react ^18 \|\| ^19`. |
 | UI state | @tanstack/react-query | 5.103.1 | MIT | Server state. |
-| UI state | zustand | 5.0.15 | MIT | Ephemeral UI state. |
 | UI state | react-router-dom | 7.5.3 | MIT | SPA routing; `createBrowserRouter` + `RouterProvider`. Peer `react >=18`. |
 | Globe | react-globe.gl | 2.38.0 | MIT | Wraps globe.gl 2.46.2 + three-globe 2.45.2; peer `react: '*'`. |
 | Globe | three | 0.186.0 | MIT | Satisfies globe.gl's `>=0.179 <1`. |
@@ -69,9 +70,9 @@ Versions below were resolved from the live npm registry on the project's dev mac
 
 **Context.** Three deployables share one contract: the API, the SPA, and the geospatial/validation code. `pnpm` and `yarn` are not installed on the dev machine; `npm@12` is.
 
-**Decision.** A three-package npm workspace — `backend`, `frontend`, `packages/shared` — with TypeScript `strict` everywhere, one root lockfile, and root orchestration scripts. Pin `typescript@7.0.2` (current `latest`).
+**Decision.** Two independent packages — `backend/` and `frontend/` — side by side in one folder, each with its own `package.json`, its own `node_modules`, its own build and deploy path. No npm workspace, no shared TypeScript package. The API contract (Zod schemas, error envelope, pagination, world-date types) lives in `backend/src/contract/` and is owned by the backend; the frontend reads types from API responses, not from a shared TS package. TypeScript `strict` everywhere. Pin `typescript@7.0.2` (current `latest`).
 
-**Consequences.** `packages/shared` is the only cross-import; neither app may import the other. If a plugin (ESLint, Vite) misbehaves under TS 7, drop to `typescript@5.9.3` — a one-line change, which is why the fallback is recorded here.
+**Consequences.** There is no cross-import between the two sides except over HTTP. If a plugin (ESLint, Vite) misbehaves under TS 7, drop to `typescript@5.9.3` — a one-line change, which is why the fallback is recorded here. Each side can be deployed independently (backend: Docker/VPS/Render; frontend: static host). The root `package.json` is a placeholder and does not orchestrate anything.
 
 **Rejected.** *pnpm/yarn* — not installed, marginal benefit at this size. *Nx/Turborepo* — extra config surface and a daemon for three packages. *Bun* — not installed. *A single flat package* — would let UI code import server code and vice versa, exactly the boundary we need.
 
@@ -94,15 +95,15 @@ Versions below were resolved from the live npm registry on the project's dev mac
 
 ---
 
-## ADR-0003 — Zod schemas in `packages/shared` as the single API contract
+## ADR-0003 — Zod schemas in `backend/src/contract/schemas/` as the single API contract
 
 **Status:** Accepted
 
 **Context.** GeoJSON geometry, `WorldDate`, custom-field definitions and spoiler levels all cross the wire. Drift in these shapes produces silent data corruption rather than compile errors.
 
-**Decision.** Every request/response shape is a Zod 4 schema in `packages/shared/src/schemas`. The backend parses inbound payloads with them; the frontend derives types via `z.infer`. Cross-field rules (e.g. a region cannot be its own ancestor) live with the schema.
+**Decision.** Every request/response shape is a Zod 4 schema in `backend/src/contract/schemas/`. The backend parses inbound payloads with them; the frontend derives types from API responses (not from a shared TS package). Cross-field rules (e.g. a region cannot be its own ancestor) live with the schema.
 
-**Consequences.** Changing an API shape is one file, visible to both sides immediately. The same schemas validate template-defined custom fields and imported backup files during restore.
+**Consequences.** Changing an API shape is one file, visible to the backend immediately; the frontend sees the change when it fetches from the updated API. The same schemas validate template-defined custom fields and imported backup files during restore.
 
 **Rejected.** *tRPC* — attractive, but couples the two workspaces directly, and we want the API consumable by other clients later. *Hand-written interfaces + AJV* — two sources of truth.
 
@@ -182,7 +183,7 @@ Summing per-cell `cellArea` and measuring the derived union with `@turf/area` **
 
 **Context.** "Specify the size of each region/country/city" means the app must report an authoritative area and ideally accept one as input ("make this country 500 000 km²"). Two traps: a fantasy world need not be Earth-sized, and both H3 and turf assume Earth's radius.
 
-**Decision.** One module — `packages/shared/src/geo/area.ts` — owns every area in the app.
+**Decision.** One module — `backend/src/contract/geo/area.ts` — owns every area in the app.
 
 - For hex-painted regions the **source of truth is the sum of exact per-cell areas**: `Σ cellArea(cell, UNITS.km2)`. `@turf/area()` on the derived union is the cross-check, and the primary path for freeform/imported geometry.
 - Every area is multiplied once by `(R_world / R_E)²`, where `R_E = 6371.007180918475 km` and `R_world` is `World.radiusKm` (default 6371). Verified factors: R=3000 km → ×0.2217; R=6371 → ×1.0000; R=12742 → ×4.0000.
@@ -241,7 +242,7 @@ Summing per-cell `cellArea` and measuring the derived union with `@turf/area` **
 
 **Context.** The app needs a world-history timeline (eras, events) and an interaction timeline, and the selected date must drive *other* views: the relationship web, and later the political map at any year. It therefore has to work in the app's own date domain (ADR-0010).
 
-**Decision.** Build the timeline in-house at `frontend/src/features/timeline/`: a virtualised lane layout over `order` (ordinal day), pan/zoom, and a scrubber that publishes `asOf` into a Zustand store. SVG rendering for events, with a canvas fallback for very dense eras.
+**Decision.** Build the timeline in-house at `frontend/src/features/timeline/`: a virtualised lane layout over `order` (ordinal day), pan/zoom, and a scrubber that dispatches `asOf` into the `timeline` Redux slice. SVG rendering for events, with a canvas fallback for very dense eras.
 
 **Evidence.** `vis-timeline` 8.5.4 pulls in `moment`, `@egjs/hammerjs`, `propagating-hammerjs`, `component-emitter`, `keycharm`, `xss`, `vis-data` and `vis-util`, and accepts a wide spread of `uuid` majors. More decisively, it is built around JavaScript `Date`, which cannot represent "the 12th of Frostfall, 342 AE" — it would force a lossy translation at the boundary of the app's most important feature.
 
@@ -257,7 +258,7 @@ Summing per-cell `cellArea` and measuring the derived union with `@turf/area` **
 
 **Context.** Writing a history requires *dates* — "the 12th of Frostfall, 342 AE" — but every ordering, filtering and duration calculation requires a **comparable number**. JavaScript `Date` cannot express month names, 400-day years, 5-day weeks, or negative years, and string sorting of formatted dates is simply wrong ("year 9" sorts after "year 10").
 
-**Decision.** Two collaborating concepts, owned by `packages/shared/src/geo`-adjacent code and `backend/src/lib/calendar.ts`:
+**Decision.** Two collaborating concepts, owned by `backend/src/contract/geo`-adjacent code and `backend/src/lib/calendar.ts`:
 
 1. **`Calendar`** — one per world. Stores `epochName`, `daysPerYear`, an ordered list of months with day counts, week length, a leap rule (day-count override per year-modulus) and a `displayFormat`. The real-Earth Gregorian calendar is just the default row.
 2. **`WorldDate`** — `{ year, monthIndex, day, hour?, minute? }`, **always validated against its calendar** (month index in range, day ≤ that month's length for that year). Alongside it the database stores **`order`**: an integer ordinal day number relative to the calendar epoch, plus an optional `timeOfDay` minute offset for intra-day ordering.
@@ -311,7 +312,7 @@ All renderers consume the same **export profile**: a JSON document naming the sc
 
 - A shared `spoilerLevel` enum: `public` (0) · `internal` (1) · `secret` (2). It is available on any *entity* and on any *field group* within it (e.g. `character.secrets`, `event.consequence`).
 - Every read endpoint accepts an `asViewer` context (`maxSpoilerLevel`). Default in the UI is `internal`; exports default to `public` unless the profile says otherwise.
-- `applySpoilerFilter(entity, level)` lives in `packages/shared/src/geo`-sibling module `spoiler.ts`, and is applied **server-side in the API and again in the export pipeline**. Client-side-only filtering is forbidden (`AGENTS.md` §3.6).
+- `applySpoilerFilter(entity, level)` lives in `backend/src/contract/spoiler.ts`, and is applied **server-side in the API and again in the export pipeline**. Client-side-only filtering is forbidden (`AGENTS.md` §3.6).
 - The UI renders anything above the current level as a blurred/locked block with an explicit reveal action, so the writer can still see that something is hidden.
 
 **Consequences.** A single context value drives correctness everywhere, and a reader-facing export can be produced with confidence. Tests must assert that a `secret` entity never appears in a `public` export payload.
@@ -320,22 +321,22 @@ All renderers consume the same **export profile**: a JSON document naming the sc
 
 ---
 
-## ADR-0013 — Frontend state: TanStack Query for server data, Zustand for UI, Tailwind + Radix for presentation
+## ADR-0013 — Frontend state: TanStack Query for server data, Redux Toolkit for UI, Tailwind + Radix for presentation
 
-**Status:** Accepted
+**Status:** Accepted (revised — originally Zustand, switched to Redux Toolkit before any feature state was written)
 
 **Context.** The UI is data-dense and editor-like: the same entity appears in a map panel, a lore panel, a graph and a timeline, and edits in one must reflect in the others. It also holds a lot of genuinely ephemeral state (selected tool, globe camera, draft geometry, timeline scrub position, spoiler view level).
 
 **Decision.**
 
 - **TanStack Query 5** owns all server data: caching, background refetch, and — critically — **invalidation by entity key**, so editing a character's name refreshes the graph and the timeline panels that read it. Mutation hooks in `features/<name>/api.ts`.
-- **Zustand 5** owns only ephemeral UI state, in small slices: `useTimelineStore` (`asOf`), `useMapStore` (tool, camera, selection, draft cells), `useViewStore` (spoiler level, units, theme). Server data never lives in Zustand.
+- **Redux Toolkit 2** owns only ephemeral UI state, in small slices composed with `combineReducers` in `frontend/src/lib/stores/`: `timeline` (`asOf`), `map` (tool, camera, selection, draft cells), `view` (spoiler level, units, theme). Components read state through typed selectors and mutate it only by `dispatch`ing actions from `slice.actions`; reducers are written with `createSlice`'s Immer-powered "mutative" syntax but never mutate outside a reducer. Server data never enters the store. Access goes through the typed hooks (`useAppSelector`, `useAppDispatch`) exported next to `configureStore` — never the raw `react-redux` hooks.
 - **Tailwind CSS 4** (via `@tailwindcss/vite`) plus **Radix UI 1.6.7** primitives and `class-variance-authority`/`tailwind-merge`/`clsx`, following the shadcn/ui convention of *owning* the component source in `frontend/src/components/ui/`. Icons from `lucide-react`.
 - The frontend never computes a domain value (area, date order, duration, word count) that the backend also needs — it calls the API instead, so there is exactly one implementation.
 
-**Consequences.** Derived views (the relationship web) subscribe to `asOf` from Zustand *and* to server data from Query, and recompute with `useMemo` at the store boundary. Because the globe is imperative (Three.js) while the rest of the app is declarative, the globe is the one component allowed to hold a renderer ref — bridged into React through `onGlobeReady` and a small imperative facade.
+**Consequences.** Derived views (the relationship web) select `asOf` from the store *and* server data from Query, and recompute with `useMemo` at the store boundary. Because the globe is imperative (Three.js) while the rest of the app is declarative, the globe is the one component allowed to hold a renderer ref — bridged into React through `onGlobeReady` and a small imperative facade. Devtools come free (`@reduxjs/toolkit` ships `redux-devtools` support in `configureStore`), and the `dispatch`-centred flow keeps every state change greppable to its action creator.
 
-**Rejected.** *Redux Toolkit* — more ceremony than this app needs, and Query already removes most server-state complexity. *Putting server data in Zustand* — reimplements caching and invalidation badly. *A component library with a fixed runtime theme (MUI/Ant)* — fights the design language and bloats the bundle. *CSS-in-JS* — unnecessary runtime cost next to Tailwind 4.
+**Rejected.** *Zustand* — chosen first for its lower ceremony, but a single explicit store with named reducers was preferred for auditability (every UI state change is a dispatched, devtools-traceable action) and one idiomatic state pattern across the team; if a future slice needs ad-hoc stores, revisit then. *Putting server data in the Redux store* — reimplements caching and invalidation badly; that is Query's job. *A component library with a fixed runtime theme (MUI/Ant)* — fights the design language and bloats the bundle. *CSS-in-JS* — unnecessary runtime cost next to Tailwind 4.
 
 ---
 
@@ -460,7 +461,7 @@ Two supporting conventions: `worldId` is duplicated onto every document so a wor
 
 **Status:** Accepted
 
-**Context.** A document store still needs a way to talk to Node. The ecosystem's default answer is Mongoose, but this project already has a schema authority: the Zod schemas in `packages/shared` that define every API shape, custom-field contract and backup-file format.
+**Context.** A document store still needs a way to talk to Node. The ecosystem's default answer is Mongoose, but this project already has a schema authority: the Zod schemas in `backend/src/contract/schemas/` that define every API shape, custom-field contract and backup-file format.
 
 **Decision.** Use the **official `mongodb` driver 7.6.0** directly, with thin typed repository functions over it. Zod remains the only place field shapes are defined: documents are parsed with the same schemas on the way out of the repository, so a stale document is caught by validation at the trust boundary.
 

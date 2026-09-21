@@ -1,6 +1,6 @@
 # DATA MODEL — MongoDB document store
 
-The documents are the contract. Shapes are enforced by Zod schemas in `packages/shared`, not by the database — so **every shape change updates the schema, the upgraders and this doc in the same change** (`AGENTS.md` §7).
+The documents are the contract. Shapes are enforced by Zod schemas in `backend/src/contract/schemas/`, not by the database — so **every shape change updates the schema, the upgraders and this doc in the same change** (`AGENTS.md` §7).
 
 Modelling rules: [`TECH-DECISIONS.md`](./TECH-DECISIONS.md) ADR-0016 (embedding-first), ADR-0017 (schema evolution), ADR-0018 (no ODM).
 

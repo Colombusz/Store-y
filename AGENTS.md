@@ -19,7 +19,7 @@ The six modules (details in `docs/FEATURES.md`):
 5. **Interactions & Relationship Web** — character encounters that mutate a time-travelable relationship graph.
 6. **Story Tracker & Exporter** — Arc → Chapter → Scene, exported as Markdown / DOCX / EPUB / PDF / JSON.
 
-Current state: **Phase 0 scaffold in place** (`T-0.1`–`T-0.3` done: workspaces, shared contract, DB connection/index manifest). Frontend is still a placeholder. Live status lives in [`docs/ROADMAP.md`](./docs/ROADMAP.md) — trust its status markers over this line.
+Current state: **Phase 0 scaffold in place** (`T-0.1`–`T-0.3` done: two independent packages (`backend/`, `frontend/`), backend-owned API contract in `backend/src/contract/`, DB connection/index manifest). Frontend is still a placeholder. Live status lives in [`docs/ROADMAP.md`](./docs/ROADMAP.md) — trust its status markers over this line.
 
 ## 2. Document map — what to read for what
 
@@ -38,9 +38,9 @@ If a doc and the code disagree, **the docs are the source of truth** — fix the
 ## 3. Hard rules (never violate)
 
 1. **TypeScript strict everywhere.** No `any` in committed code (`unknown` + narrowing is fine). No non-null assertions (`!`) except in tests.
-2. **Validate at the boundary.** Every HTTP request body/query/param is parsed with a Zod schema from `packages/shared`. Never trust raw input deeper in the stack.
-3. **All geographic data is GeoJSON `[lng, lat]` on the wire and in the DB.** H3 functions take `[lat, lng]`. **Conversion must go through the helpers in `packages/shared/src/geo/` — never inline the swap.** (This is the single most likely source of silent bugs in this codebase.)
-4. **All areas are computed in `packages/shared/src/geo/` and scaled by the world's radius.** Never hardcode Earth's 6371 km in feature code.
+2. **Validate at the boundary.** Every HTTP request body/query/param is parsed with a Zod schema from `backend/src/contract/schemas/`. Never trust raw input deeper in the stack.
+3. **All geographic data is GeoJSON `[lng, lat]` on the wire and in the DB.** H3 functions take `[lat, lng]`. **Conversion must go through the helpers in `backend/src/contract/geo/` — never inline the swap.** (This is the single most likely source of silent bugs in this codebase.)
+4. **All areas are computed in `backend/src/contract/geo/` and scaled by the world's radius.** Never hardcode Earth's 6371 km in feature code.
 5. **All world dates are stored as a `WorldDate` object *plus* an integer `order` (absolute day number).** Never sort by string dates. Never store a date as a JS `Date`.
 6. **Spoiler rule:** any field that can hold secret/GM-only content must have a companion `spoilerLevel` and be filtered by a shared `applySpoilerFilter()` helper in the API *and* in exports. Never leak secrets into an export.
 7. **No feature is complete without tests.** See §7.
@@ -65,7 +65,8 @@ If a doc and the code disagree, **the docs are the source of truth** — fix the
 Store-y/
 ├── AGENTS.md                  # this file
 ├── README.md                  # human-facing overview
-├── package.json               # npm workspaces root, orchestration scripts
+├── package.json               # backend package manifest — its own deps, its own build
+│   ├── tsconfig.json          # extends tsconfig.base.json (root)
 ├── tsconfig.base.json         # shared strict compiler options
 ├── .env.example               # documented env vars (PORT, DB_PATH, UPLOAD_DIR)
 ├── docs/                      # the plan (see §2)
@@ -88,10 +89,8 @@ Store-y/
 │       ├── features/<name>/   # one folder per feature (see §6)
 │       ├── components/ui/     # design-system primitives (Button, Dialog, …)
 │       └── lib/               # api.ts (fetch client), queryClient.ts, stores/
-└── packages/shared/           # imported by BOTH backend and frontend
-    └── src/
-        ├── schemas/           # Zod schemas — the single API contract
-        ├── types/             # inferred + domain types (WorldDate, RegionDoc, …)
+└── src/
+    └── contract/              # API contract OWNED by backend: Zod schemas, types,
         ├── geo/               # geodesy: h3.ts, area.ts, project.ts, geometry.ts
         ├── dates/             # calendar.ts: toOrder, formatWorldDate, durations
         ├── relationships/     # foldRelationshipState.ts (the time-travel fold)
@@ -100,7 +99,7 @@ Store-y/
         └── index.ts
 ```
 
-**Rule:** if a type or validation rule is needed by both sides, it lives in `packages/shared`. Neither `backend` nor `frontend` may import from the other.
+**Rule:** if a type or validation rule is needed by both sides, it lives in `backend/src/contract/`. Neither `backend` nor `frontend` may import from the other — the frontend gets types from API responses, not from a shared TypeScript package.
 
 > **Note:** only `AGENTS.md`, `README.md`, `docs/` and the empty `backend/` and `frontend/` folders exist today. Everything else in the tree above is the **target** layout, created by T-0.1 in Phase 0.
 
@@ -124,7 +123,7 @@ Every frontend feature `frontend/src/features/<name>/` contains:
 | `api.ts` | Typed calls to the backend, hooks via TanStack Query (`useRegions()`, `useUpdateRegion()`). |
 | `components/` | Feature-local components — **the primary building blocks of the feature**. One component per file, page-sized pages assembled from them. |
 | `hooks/` | `use-*.ts` behaviour hooks (painting, cursor, camera) so components stay declarative. |
-| `store.ts` | Zustand slice — **only** ephemeral UI state (selection, camera, draft geometry). Server data never lives here. |
+| `store.ts` | Redux Toolkit slice — **only** ephemeral UI state (selection, camera, draft geometry), changed only by `dispatch`ing actions from `slice.actions`. Server data never lives here. |
 | `<Name>Page.tsx` | Route entry point — a thin composition root, not an implementation. |
 
 The frontend is **component-first**: pages are compositions, logic lives in hooks, primitives graduate to `components/ui/` at the third consumer. Size budgets (hard rule 11) apply per component file; a feature outgrowing its folder splits the same way a backend module does (`CONVENTIONS.md` §5, §9).
@@ -136,7 +135,7 @@ A task is done only when **all** of these hold:
 1. `npm run typecheck` passes with zero errors.
 2. `npm run lint` passes.
 3. `npm test` passes; new behaviour is covered by tests (service logic unit-tested; API contracts integration-tested via `app.inject()`).
-4. Any new/changed API shape is expressed in `packages/shared/src/schemas` and consumed by both sides.
+4. Any new/changed API shape is expressed in `backend/src/contract/schemas/` and consumed by the backend; the frontend reads the resulting types from API responses.
 5. Any new/changed document shape has a `schemaVersion` bump, an upgrader, matching Zod schemas, and updated index declarations if new query paths were added — verified by `npm run db:indexes` on a scratch database.
 6. New env vars are added to `.env.example` and parsed in `backend/src/env.ts`.
 7. The relevant doc in `docs/` is updated in the same change (feature spec, data model, or ADR).
@@ -146,21 +145,20 @@ A task is done only when **all** of these hold:
 
 ## 8. Commands
 
-All commands run from the repository root and are defined in the root `package.json`.
+Commands run per-package (each side has its own `package.json` and its own `node_modules`). The root `package.json` is a placeholder and does not orchestrate anything.
 
-| Command | Purpose |
-|---------|---------|
-| `npm install` | Install all workspaces (single lockfile at the root). |
-| `npm run dev` | API on `:4000` + web on `:5173` concurrently. |
-| `npm run dev:api` / `npm run dev:web` | One side only. |
-| `npm run build` | Type-check and build all workspaces. |
-| `npm run typecheck` | `tsc --noEmit` across workspaces. |
-| `npm run lint` / `npm run format` | ESLint (flat config) / Prettier write. |
-| `npm test` / `npm run test:watch` | Vitest across workspaces. |
-| `npm run db:start` | Starts the project's `mongod` as a single-node replica set (once per session). |
-| `npm run db:indexes` | Applies the declared index manifest, idempotently. |
-| `npm run db:shell` | Opens `mongosh` against the project database. |
-| `npm run seed` | Load the demo world (see `docs/ROADMAP.md` Phase 0). |
+| Command | Where | Purpose |
+|---------|-------|---------|
+| `npm install` | `backend/` and `frontend/` | Install that side's dependencies (each gets its own `node_modules`). |
+| `npm run dev` | `backend/` or `frontend/` | Run that side alone (`backend`: API on `:4000`; `frontend`: web on `:5173`). |
+| `npm run build` | `backend/` or `frontend/` | Type-check and build that side. |
+| `npm run typecheck` | `backend/` or `frontend/` | `tsc --noEmit` for that side. |
+| `npm run lint` / `npm run format` | `backend/` or `frontend/` | ESLint (flat config) / Prettier write for that side. |
+| `npm test` / `npm run test:watch` | `backend/` or `frontend/` | Vitest for that side only. |
+| `npm run db:start` | `backend/` | Starts the project's `mongod` as a single-node replica set (once per session). |
+| `npm run db:indexes` | `backend/` | Applies the declared index manifest, idempotently. |
+| `npm run db:shell` | `backend/` | Opens `mongosh` against the project database. |
+| `npm run seed` | `backend/` | Load the demo world (see `docs/ROADMAP.md` Phase 0). |
 
 The frontend dev server proxies `/api/*` to `http://localhost:4000`, so the app never needs CORS in development.
 
@@ -168,12 +166,12 @@ The frontend dev server proxies `/api/*` to `http://localhost:4000`, so the app 
 
 - Base path is `/api/v1`. Resource segments are plural, kebab-case: `/api/v1/regions`, `/api/v1/historical-events`.
 - Standard verbs: `GET /collection`, `POST /collection`, `GET /collection/:id`, `PATCH /collection/:id`, `DELETE /collection/:id` (soft delete → trash).
-- Every request body/query/params object is a Zod schema from `packages/shared`; the route fails with `400` before any service code runs.
+- Every request body/query/params object is a Zod schema from `backend/src/contract/schemas/`; the route fails with `400` before any service code runs.
 - **Error envelope** (always):
   ```json
   { "error": { "code": "REGION_PARENT_CYCLE", "message": "Human readable.", "details": {} } }
   ```
-  Codes are stable `SCREAMING_SNAKE_CASE` strings defined in `packages/shared/src/constants/error-codes.ts`.
+  Codes are stable `SCREAMING_SNAKE_CASE` strings defined in `backend/src/contract/constants/error-codes.ts`.
 - **IDs** are UUIDv7-style strings generated with the built-in `crypto.randomUUID()` — no dependency, lexicographically time-ordered.
 - **Timestamps** are ISO-8601 UTC strings. **World dates are never timestamps** (see hard rule 5).
 - **Pagination** is cursor-based: `?limit=50&cursor=<id>`; the response is `{ items: [...], nextCursor: string | null }`. Never return an unbounded collection.
@@ -185,7 +183,7 @@ The frontend dev server proxies `/api/*` to `http://localhost:4000`, so the app 
 2. Announce the task in your first message, then implement it end-to-end — do not leave half-finished scaffolding.
 3. Work in small, coherent increments. One task = one focused change set. **Do not refactor code outside your task's scope**; note it under "Found while working" instead.
 4. **Watch the size budgets while you work** (hard rule 11 / `CONVENTIONS.md` §9). A file crossing 300 lines or a function crossing 50 is split **in the same change** — extract a sub-module, a `lib/` helper, or promote the file to a folder with an `index.ts` barrel. Do not leave a monolith for a later cleanup pass.
-5. Before declaring done, run: `npm run typecheck && npm run lint && npm test`.
+5. Before declaring done, run the relevant side's gate from its folder: `cd backend && npm run typecheck && npm run lint && npm test` (or `cd frontend && ...` for frontend tasks).
 6. Update the affected doc(s) and mark the task complete with a one-line note about anything a follow-up task must know.
 7. Commit with Conventional Commits including the task ID:
    `feat(geo): measured region area with world-radius scaling [T-1.3]`
@@ -194,10 +192,10 @@ The frontend dev server proxies `/api/*` to `http://localhost:4000`, so the app 
 
 ## 11. Known pitfalls (all verified on the dev machine — do not rediscover these)
 
-1. **Coordinate order.** GeoJSON is `[lng, lat]`; **H3 is `[lat, lng]`.** Ring conversion must go through `packages/shared/src/geo/`. Symptom of getting it wrong: regions render rotated/mirrored or land in the wrong hemisphere.
+1. **Coordinate order.** GeoJSON is `[lng, lat]`; **H3 is `[lat, lng]`.** Ring conversion must go through `backend/src/contract/geo/`. Symptom of getting it wrong: regions render rotated/mirrored or land in the wrong hemisphere.
 2. **H3 v4 naming.** The correct names are `getHexagonAreaAvg(res, unit)` and `getHexagonEdgeLengthAvg(res, unit)` — *not* `averageHexagonArea`. `cellArea(h3Index, unit)` takes an **h3 index**, not a resolution; passing a resolution silently returns a constant for every value (verified: 4106166.3345 km² for res 0–9), which quietly corrupts every area in the app.
 3. **`polygonToCells(ring, res)`** takes the ring as `[lat, lng]` and accepts no flags. For containment control use `polygonToCellsExperimental(ring, res, flags)` with `POLYGON_TO_CELLS_FLAGS` (`containmentCenter` | `containmentFull` | `containmentOverlapping` | `containmentOverlappingBbox`).
-4. **H3 assumes an Earth-sized sphere.** All H3 areas/edge lengths and `@turf/area` use Earth's radius `R_E = 6371.007180918475 km`. For a non-Earth world multiply every area by `(R_world / R_E)²` **exactly once**, inside `shared/geo/area.ts`.
+4. **H3 assumes an Earth-sized sphere.** All H3 areas/edge lengths and `@turf/area` use Earth's radius `R_E = 6371.007180918475 km`. For a non-Earth world multiply every area by `(R_world / R_E)²` **exactly once**, inside `backend/src/contract/geo/area.ts`.
 5. **Unit discipline.** `@turf/area()` returns **m²**; `cellArea(..., UNITS.km2)` returns **km²**. Do not divide by `1e6` twice — it yields plausible-looking but 10⁶× wrong numbers.
 6. **`h3-js` has no `exports` map** (only `main`, `module`, `umd:main`). Verified working via `require` and via default/namespace/named ESM imports on Node 24. If a bundler mis-resolves it, add `h3-js` to Vite's `optimizeDeps.include`.
 7. **The `react-globe.gl` ref is null before `onGlobeReady`.** Gate imperative calls (`pointOfView`, `toGeoCoords`) behind that flag, and dispose the renderer on unmount — React StrictMode double-mounts in dev and otherwise leaks WebGL contexts.

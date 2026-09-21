@@ -73,7 +73,7 @@ Task-level breakdown with dependencies and deliverables: [`ROADMAP.md`](./ROADMA
 
 1. **No hard network dependency at runtime** — no telemetry, CDN fonts or third-party APIs.
 2. **One writer, one laptop** — globe first paint < 2 s on integrated graphics; 200 regions and 2 000 events stay interactive; the DB stays well under 100 MB for a novel-scale world.
-3. **Every displayed number must be reproducible** — areas, durations, word counts and date orderings come from tested functions in `packages/shared` or `backend/src/lib`, never ad-hoc component maths.
+3. **Every displayed number must be reproducible** — areas, durations, word counts and date orderings come from tested functions in `backend/src/contract/` or `backend/src/lib`, never ad-hoc component maths.
 4. **Destructive operations are recoverable** — soft deletes, a revision log, and a JSON export to fall back on.
 5. **Spoilers are a field, not a naming convention.**
 

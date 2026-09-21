@@ -30,7 +30,7 @@ Store-y treats a fictional world as a **graph of connected entities with dates**
 
 ## Status
 
-**Phase 0 in progress.** The monorepo scaffold (T-0.1) is in place: `backend/`, `frontend/` and `packages/shared/` are npm workspaces that install, typecheck, test and run together. The authoritative documents for anyone (human or AI agent) working in this project are in [`docs/`](./docs) — see the index below and read [`AGENTS.md`](./AGENTS.md) before writing code.
+**Phase 0 in progress.** Two independent packages sit side by side in this folder: `backend/` (the API) and `frontend/` (the web app). Each has its own `package.json`, its own `node_modules`, its own build and deploy path. The API contract (Zod schemas, error envelope, pagination, world-date types) lives in `backend/src/contract/` and is owned by the backend; the frontend reads types from API responses, not from a shared TypeScript package. The authoritative documents for anyone (human or AI agent) working in this project are in [`docs/`](./docs) — see the index below and read [`AGENTS.md`](./AGENTS.md) before writing code.
 
 ## Documentation index
 
@@ -47,29 +47,95 @@ Store-y treats a fictional world as a **graph of connected entities with dates**
 
 ## Technology at a glance
 
-- **Frontend** — React 19 + TypeScript, Vite 8, Tailwind CSS 4, Zustand (UI state), TanStack Query (server state), **react-globe.gl** (Three.js/WebGL 3D globe), **@xyflow/react** (relationship web), d3-force (graph layout).
+- **Frontend** — React 19 + TypeScript, Vite 8, Tailwind CSS 4, **Redux Toolkit** (UI state — reducers, `dispatch`, typed store), TanStack Query (server state), **react-globe.gl** (Three.js/WebGL 3D globe), **@xyflow/react** (relationship web), d3-force (graph layout).
 - **Backend** — Node 24, Fastify 5, Zod 4 (validation, shared with the frontend), the **official MongoDB Node driver** (no ODM), REST under `/api/v1`.
 - **Database** — **MongoDB** (document store, not relational), run locally as a single-node replica set so multi-document transactions are available. `mongod` is already installed here; no Docker, no cloud account.
 - **Geospatial engine** — **h3-js** (hexagonal global grid: region painting, exact areas, neighbour/border detection) + **@turf/area** & geodesic maths (true measured area in km²/mi², scaled for non-Earth-sized worlds), with real spatial queries via MongoDB `2dsphere` indexes.
 - **Export** — Markdown, `docx`, `epub-gen-memory`, `pdf-lib`, plus a full JSON backup/restore.
-- **Monorepo** — npm workspaces (`backend`, `frontend`, `packages/shared`).
+- **Monorepo** — two independent packages (`backend/`, `frontend/`) side by side; no workspace, no shared TypeScript package.
 
 Exact pinned versions and the reasoning behind every choice are in [`docs/TECH-DECISIONS.md`](./docs/TECH-DECISIONS.md).
 
 ## Quickstart
 
 ```bash
-npm install          # installs all workspaces
+# Install each side independently (each has its own node_modules):
+cd backend && npm install
+cd ../frontend && npm install
+
+# Backend needs a local MongoDB (already installed on the dev machine):
+cd backend
 npm run db:start     # starts a local mongod as a single-node replica set (once per session)
 npm run db:indexes   # applies the declared index manifest (idempotent)
 npm run seed         # loads the demo world (not yet implemented — arrives in T-0.9)
-npm run dev          # runs API (:4000) + web app (:5173) together
-npm test             # vitest, all workspaces
+
+# Run the two sides. They can be started from their own folders or together:
+cd backend && npm run dev     # API on :4000
+cd frontend && npm run dev    # web app on :5173 (proxies /api → localhost:4000)
+
+# Or run both in one terminal from the root folder:
+(cd backend && npm run dev) & (cd frontend && npm run dev)
+
+# Tests (run per side, not from the root):
+cd backend && npm test
+cd frontend && npm test
 ```
 
 `mongod` must be installed locally (it already is on the dev machine — see [`docs/TECH-DECISIONS.md`](./docs/TECH-DECISIONS.md) ADR-0015); no Docker, no cloud.
 
 ## Design principles
+
+### Backend (`backend/`)
+
+The backend is a Node 24 + Fastify 5 service that can be deployed several ways:
+
+**1. Plain Node process** (any VPS, any host that runs Node):
+```bash
+cd backend
+npm install          # or npm ci if you have package-lock.json
+npm run build        # tsc → dist/
+node dist/server.js  # reads PORT env (default 4000)
+```
+Set `PORT`, `MONGO_URI`, `MONGO_DB` via environment variables (see `.env.example`).
+
+**2. Docker** (any Docker host — VPS, Render, Fly, AWS, local):
+```bash
+cd backend
+docker build -t storey-backend .
+docker run -p 4000:4000 \
+  -e PORT=4000 \
+  -e MONGO_URI=mongodb://host:27017/storey?replicaSet=rs0 \
+  -e MONGO_DB=storey \
+  storey-backend
+```
+The `Dockerfile` in `backend/` is a two-stage build (compile in stage 1, thin runtime in stage 2). See `backend/.dockerignore` for what's excluded from the build context.
+
+**3. Render** (Web Service):
+- Connect the `backend/` folder as a Git repo (or the whole repo and set the root directory to `backend/`).
+- Build command: `npm install && npm run build`
+- Start command: `node dist/server.js`
+- Set environment variables: `PORT`, `MONGO_URI`, `MONGO_DB`.
+- Render provides its own MongoDB or you can point it at an external MongoDB (Atlas or self-hosted).
+
+**4. Vercel** (Node.js serverless function — works but is not the primary target):
+- Vercel can run Node serverless functions. The backend is not designed as a serverless app (it holds a MongoDB driver connection, runs a replica-set-aware mongod locally for transactions), so Vercel is viable only if you externalize MongoDB and accept cold-start connection behavior. Prefer a VPS or Docker host for the backend; use Vercel for the frontend if you want.
+
+### Frontend (`frontend/`)
+
+The frontend is a static SPA (Vite build → `dist/`). Deploy the `dist/` folder to any static host:
+
+- **Vercel**: connect `frontend/` as a Git repo; it auto-detects Vite and builds `npm run build`; deploys `dist/` statically.
+- **Cloudflare Pages**, **Netlify**, **S3 + CloudFront**, **nginx**, etc.: build with `npm run build` in `frontend/` and upload `dist/`.
+- The frontend proxies `/api` requests to the backend at runtime (see `frontend/vite.config.ts` in dev; in production the API base URL is an env var or config).
+
+### Together
+
+The two sides are independent deployables. A typical production setup:
+
+- Backend on a VPS / Docker host / Render, with MongoDB nearby (same network, or Atlas).
+- Frontend on a static host (Vercel, Cloudflare, S3), pointing at the backend's public API URL.
+
+They do not need to be on the same machine, in the same repo, or even deployed by the same team.
 
 1. **Local-first and owned by the writer.** One MongoDB data directory plus an uploads folder *is* the project, and `mongod` runs on your machine — no cloud, no account. JSON export/import is a first-class feature, never a paywall — no lock-in.
 2. **The map has numbers.** Every region reports a real measured area; "make this country 500,000 km²" is a supported instruction.
