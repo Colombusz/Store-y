@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+
+# Local environment
+.env
+
+# Project data (MongoDB data dir, logs, uploads) — never commit
+backend/data/
+
+# Vite cache
+.vite/
+
+# Editor / OS noise
+.DS_Store
+.qoder/
