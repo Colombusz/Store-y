@@ -1,0 +1,19 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]: Store-y
+    - generic [ref=e10]: Loading worlds…
+    - generic [ref=e11]: Phase 1
+  - generic [ref=e12]:
+    - navigation "Primary navigation" [ref=e13]:
+      - link "Home" [ref=e14] [cursor=pointer]:
+        - /url: /
+      - link "Map" [ref=e17] [cursor=pointer]:
+        - /url: /map
+      - link "Lore" [ref=e20] [cursor=pointer]:
+        - /url: /lore
+      - link "History" [ref=e24] [cursor=pointer]:
+        - /url: /history
+      - link "People" [ref=e29] [cursor=pointer]:
+        - /url: /people
+    - main [ref=e35]:
+      - generic [ref=e36]: Loading…

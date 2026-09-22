@@ -49,10 +49,10 @@ The primary way to define a region: paint H3 cells on the globe.
 - Painting over a cell owned by another region is blocked by default (configurable repaint).
 
 **Acceptance criteria**
-- [ ] Committing 50 contiguous painted cells produces one region with `cellCount = 50` and `areaKm2` equal to the sum of exact `cellArea` values (server test).
-- [ ] Drag-painting across 200+ cells stays responsive at res 5 (no dropped input).
-- [ ] Erasing mid-draft then committing stores the correct final set; `compactCells` round-trips losslessly.
-- [ ] Cancelling a paint session leaves no server state behind.
+- [x] Committing 50 contiguous painted cells produces one region with `cellCount = 50` and `areaKm2` equal to the sum of exact `cellArea` values (server test).
+- [x] Drag-painting across 200+ cells stays responsive at res 5 (no dropped input).
+- [x] Erasing mid-draft then committing stores the correct final set; `compactCells` round-trips losslessly.
+- [x] Cancelling a paint session leaves no server state behind.
 
 ### F-MAP-3 — Region hierarchy
 
