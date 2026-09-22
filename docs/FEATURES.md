@@ -32,10 +32,10 @@ A rotatable, zoomable, pannable 3D globe on which all geographic data is drawn.
 - Layer visibility, region colours and the current `asOf` date all affect what is drawn.
 
 **Acceptance criteria**
-- [ ] Globe renders with atmosphere and a custom texture; first paint < 2 s on integrated graphics.
-- [ ] No WebGL context leak across 10 mount/unmount cycles under React StrictMode.
-- [ ] Camera position persists across route changes within a session.
-- [ ] All imperative ref calls are gated behind `onGlobeReady`; no null-ref errors in console.
+- [x] Globe renders with atmosphere and a custom texture; first paint < 2 s on integrated graphics.
+- [x] No WebGL context leak across 10 mount/unmount cycles under React StrictMode.
+- [x] Camera position persists across route changes within a session.
+- [x] All imperative ref calls are gated behind `onGlobeReady`; no null-ref errors in console.
 
 ### F-MAP-2 — Region painting (hex authoring)
 
@@ -64,14 +64,9 @@ Regions nest: continent → country → province/state → city → district. An
 - Deleting a parent with children requires an explicit `strategy` (`reparent` | `cascade`); the bare delete is refused.
 
 **Acceptance criteria**
-- [ ] Cycle creation is rejected with a stable error code, covered by a test.
-- [ ] A child wholly outside its parent is rejected; a partially outside child reports which cells are invalid.
-- [ ] Nesting to depth ≥ 5 works and renders without recursion problems.
-
-**Acceptance criteria**
-- [ ] Cycle creation is rejected with a stable error code, covered by a test.
-- [ ] A child wholly outside its parent is rejected; a partially outside child reports which cells are invalid.
-- [ ] Nesting to depth ≥ 5 works and renders without recursion problems.
+- [x] Cycle creation is rejected with a stable error code (`REGION_PARENT_CYCLE`), covered by a test.
+- [x] A child wholly outside its parent is rejected (`REGION_OUTSIDE_PARENT`); a partially outside child reports which cells are invalid (`details.invalidCells`).
+- [x] Nesting to depth ≥ 5 works and renders without recursion problems (materialised path `ancestorIds`).
 
 ### F-MAP-4 — Measured area and target-area fitting
 

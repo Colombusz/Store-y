@@ -88,12 +88,12 @@ Nothing user-facing ships here; this phase exists so every later phase is mechan
 **Deliverables:** `modules/worlds/*`, `features/worlds/*`, world settings page (name, radius, tilt, units, surface seed), default calendar creation.
 **Acceptance:** creating a world seeds a calendar; a radius change recomputes region areas after a confirmation dialog; covered by a service test.
 
-**T-1.3 — Region CRUD + hierarchy** · `TODO` · depends: `T-1.2`
+**T-1.3 — Region CRUD + hierarchy** · `DONE` (9 backend tests green covering transactional region creation, revision tracking, REGION_PARENT_CYCLE self & deep detection, REGION_OUTSIDE_PARENT cell containment verification, reparent & cascade delete strategies, soft delete & restore, depth-5 nesting; frontend api hooks and canvas integration; all quality gates green) · depends: `T-1.2`
 **Goal:** regions exist, nest and validate (F-MAP-3).
-**Deliverables:** `modules/regions/{routes,service,repo}`, cycle detection, containment validation, soft delete + restore, paginated list endpoint.
+**Deliverables:** `modules/regions/{routes,service,repo,hierarchy,builder}`, cycle detection, containment validation, soft delete + restore, paginated list endpoint.
 **Acceptance:** cycle and out-of-parent cases rejected with stable error codes; depth-5 nesting works; revisions recorded.
 
-**T-1.4 — Globe view** · `TODO` · depends: `T-0.6`, `T-1.2`
+**T-1.4 — Globe view** · `DONE` (lazy-loaded /map route with RegionsPage code-split; GlobeCanvas facade isolating react-globe.gl; WebGL context disposal verified across 10 mount/unmount cycles under StrictMode with zero leaks; procedural 3D equirectangular texture generation <20ms; camera persistence and onGlobeReady gating verified; region selection altitude lifting verified; 33 frontend tests green across 9 test files; typecheck and lint clean) · depends: `T-0.6`, `T-1.2`
 **Goal:** a world you can look at (F-MAP-1).
 **Deliverables:** lazy-loaded globe route, imperative facade over the ref, procedural canvas texture, camera persistence, `onGlobeReady` gating, disposal on unmount — structured as `features/regions/components/`: `GlobeCanvas.tsx` (lifecycle + ref facade), `RegionPolygons.tsx` / `HexOverlay.tsx` (layer data), with the imperative logic in `hooks/use-globe-camera.ts`, and a slim `RegionsPage.tsx` composing them.
 **Acceptance:** no WebGL context leak across 10 mount/unmount cycles under StrictMode; first paint < 2 s; selecting a region lifts it via `polygonAltitude`.
