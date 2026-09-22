@@ -18,9 +18,9 @@ A world is the root container. Fields: name, tagline, genre, description, **radi
 - Creating a world seeds a default Gregorian-equivalent calendar so dates work immediately.
 
 **Acceptance criteria**
-- [ ] `POST /api/v1/worlds` creates a world *and* its default calendar in one transaction.
-- [ ] Creating a region on a world of radius R yields an area scaled by `(R/R_E)²` exactly (unit test).
-- [ ] Radius change propagates to all region areas; service test covers the propagation.
+- [x] `POST /api/v1/worlds` creates a world *and* its default calendar in one transaction.
+- [x] Creating a region on a world of radius R yields an area scaled by `(R/R_E)²` exactly (unit test).
+- [x] Radius change propagates to all region areas; service test covers the propagation.
 
 ### F-MAP-1 — 3D globe rendering
 
@@ -370,9 +370,9 @@ The single screen that answers the app's headline question.
 **Rules** — JSON export carries a `schemaVersion` and every referenced asset. Import validates with Zod, reports incompatible versions clearly, and restores into a **new** world id (never clobbering an existing world). Round-tripping must be lossless.
 
 **Acceptance criteria**
-- [ ] Export → wipe → import gives deep equality for every entity.
-- [ ] A newer `schemaVersion` fails with an actionable message, not corruption.
-- [ ] A malformed file is rejected by Zod and leaves the DB untouched.
+- [x] Export → wipe → import gives deep equality for every entity.
+- [x] A newer `schemaVersion` fails with an actionable message, not corruption.
+- [x] A malformed file is rejected by Zod and leaves the DB untouched.
 
 ---
 

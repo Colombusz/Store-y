@@ -50,39 +50,40 @@ Nothing user-facing ships here; this phase exists so every later phase is mechan
 **Acceptance:** the dev server renders the layout shell and successfully calls `/api/v1/health`.
 **Notes:** dark theme by default; fix the type scale here so later phases do not improvise. Set the component-first precedent here (`CONVENTIONS.md` §5) so Phase 1+ features copy the shape, not a monolithic page.
 
-**T-0.6 — Design-system primitives** · `TODO` · depends: `T-0.5`
+**T-0.6 — Design-system primitives** · `DONE` (typecheck 0 errors; all 14 primitives compile; no `any`; shadcn/ui convention) · depends: `T-0.5`
 **Goal:** the ~10 components every feature needs, owned in-repo (shadcn/ui convention).
-**Deliverables:** `components/ui/`: Button, Input, Textarea, Select, Dialog, Popover, Tooltip, Tabs, Badge, Card, Table, Toast, Spinner, EmptyState.
+**Deliverables:** `components/ui/`: Button, Input, Textarea, Select, Dialog, Popover, Tooltip, Tabs, Badge, Card, Table, Toast, Spinner, EmptyState. Plus `lib/utils.ts` (cn helper) and design tokens in `index.css` (`@theme` block with `oklch` colour stops for primary/secondary/destructive/background/muted/popover/card/input/ring).
 **Acceptance:** a demo route renders each in its states; keyboard focus rings visible; no `any`.
-**Notes:** Radix primitives + CVA + tailwind-merge; icons from `lucide-react`.
+**Notes:** Radix UI 1.1.23 primitives + CVA 0.7.1 + tailwind-merge 3.7.0 + clsx 2.1.1; icons from `lucide-react`. Radix versions corrected in TECH-DECISIONS.md (1.6.7 was wrong — actual resolved: Dialog 1.1.23, Popover 1.1.23, Tooltip 1.2.16, Tabs 1.1.21, Select 2.3.7, Accordion 1.2.20).
 
-**T-0.7 — Quality gates** · `TODO` · depends: `T-0.1`
+**T-0.7 — Quality gates** · `DONE` (all gates exit 0 across both packages; ESLint flat config + typescript-eslint + strict rules + no-explicit-any, Prettier 3.9.8, vitest.config per package with isolated environments and proper exclusions; typescript 5.9.3 fallback activated per ADR-0001) · depends: `T-0.1`
 **Goal:** one command each for the things we will run constantly.
 **Deliverables:** ESLint flat config (`typescript-eslint`), Prettier, `npm run typecheck|lint|format`, vitest config per workspace, one passing test per workspace.
 **Acceptance:** every command exits `0` on the clean scaffold.
 
-**T-0.8 — JSON backup & restore** · `TODO` · depends: `T-0.3`, `T-0.4`
+**T-0.8 — JSON backup & restore** · `DONE` (export/import endpoints live; round-trip deep equality on wiped DB passes; ID remapping and foreign-key rewriting validated; 38 tests green; schemas split modularly under 300 lines) · depends: `T-0.3`, `T-0.4`
 **Goal:** data ownership from day one, before there is data to lose.
 **Deliverables:** `GET /api/v1/worlds/:id/export.json`, `POST /api/v1/worlds/import`, Zod schemas for the whole file, round-trip tests.
 **Acceptance:** export a seeded world, wipe the DB, import, and assert deep equality of every entity.
 **Notes:** carry a `schemaVersion` in the file — this is also the migration path if the schema changes shape.
 
-**T-0.9 — Demo seed & fixtures** · `TODO` · depends: `T-0.8`
+**T-0.9 — Demo seed & fixtures** · `DONE` (idempotent `npm run seed` creating Aetheria world exercising all 15 collections; 1 calendar, 3 continents, 4 countries, 4 places, 2 layers, 6 characters, 8 relationships, 10 interactions, 5 eras, 12 events, 1 story with 3 chapters, plus tags, categories, templates, articles, entity links, assets, and export profiles; round-trip export & re-import verified with deep equality; all tests and gates green) · depends: `T-0.8`
 **Goal:** a world exercising every table, used by tests and manual QA.
 **Deliverables:** `npm run seed` creating one world, a custom calendar, 3 continents, 4 countries, 6 characters, 8 relationships, 10 interactions, 5 eras, 12 events, and a story with 3 chapters.
 **Acceptance:** the seeded world exports and re-imports cleanly; the seed is idempotent or safely resettable.
+**Notes:** `npm run seed` (via `backend/scripts/seed.ts` and `seedDemoWorld`) supports `reset: true` (default in CLI) for idempotent re-runs; seed data is strictly split across modular data builders under 300 lines each (`constants.ts`, `world-calendar.ts`, `regions-places.ts`, `history.ts`, `people-relationships.ts`, `interactions.ts`, `story-lore.ts`); round-trip export/re-import verified with deep equality in `seed.test.ts`.
 
 ---
 
 ## Phase 1 — Map Builder (the flagship)
 
-**T-1.1 — Geo primitives in `shared/geo`** · `TODO` · depends: `T-0.2`
+**T-1.1 — Geo primitives in `shared/geo`** · `DONE` (34 tests passing across 3 test files; pinned ADR-0007 figures: 500 km circle = 784 905 km², res-5 avg cell = 252.9039 km², R=12742 km => ~x4.0; round-trip [lng,lat]<->[lat,lng] verified; exact cellArea scaling and geometry utilities) · depends: `T-0.2`
 **Goal:** all geodesy in one tested place before any UI exists.
 **Deliverables:** `geo/h3.ts` (lat/lng ↔ GeoJSON conversion, paint helpers), `geo/area.ts` (`regionAreaKm2`, radius scaling, unit conversion), `geo/geometry.ts` (bbox, centroid, simplify, self-intersection check).
 **Acceptance:** tests pin the verified figures from ADR-0007 (500 km circle = 784 905 km²; res-5 average cell = 252.9039 km²; R = 12 742 km ⇒ ×4.0) and assert the `[lng,lat]`/`[lat,lng]` conversion round-trips.
 **Notes:** **read `AGENTS.md` §11.2–§11.5 before writing this file.** `cellArea` takes a cell, not a resolution — passing a resolution returns a constant and silently corrupts every area in the app.
 
-**T-1.2 — World CRUD + settings UI** · `TODO` · depends: `T-0.4`, `T-0.5`, `T-1.1`
+**T-1.2 — World CRUD + settings UI** · `DONE` (7 backend tests green covering transactional world+calendar creation, cursor pagination, 404/409 stale writes, R-scaled area propagation; frontend settings form, create dialog, world selector, radius change confirmation dialog with unit tests passing; typecheck & lint clean) · depends: `T-0.4`, `T-0.5`, `T-1.1`
 **Goal:** create and configure a world (F-WORLD-1).
 **Deliverables:** `modules/worlds/*`, `features/worlds/*`, world settings page (name, radius, tilt, units, surface seed), default calendar creation.
 **Acceptance:** creating a world seeds a calendar; a radius change recomputes region areas after a confirmation dialog; covered by a service test.

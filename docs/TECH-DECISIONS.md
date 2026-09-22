@@ -13,7 +13,7 @@ Versions below were resolved from the live npm registry on the project's dev mac
 | Area | Package | Version | Licence | Notes |
 |------|---------|---------|---------|-------|
 | Runtime | Node.js | 24.18.0 | MIT | Already installed. |
-| Language | typescript | 7.0.2 | Apache-2.0 | `latest`. Fallback `5.9.3` if a plugin lags. See ADR-0001. |
+| Language | typescript | 5.9.3 | Apache-2.0 | Fallback activated at T-0.7 for `typescript-eslint@8.70.0` peer compatibility (`<6.1.0`). See ADR-0001. |
 | API | fastify | 5.12.5 | MIT | |
 | API | @fastify/cors | 11.3.0 | MIT | Dev only; prod is same-origin. |
 | API | @fastify/multipart | 10.1.1 | MIT | Image/texture uploads. |
@@ -26,7 +26,7 @@ Versions below were resolved from the live npm registry on the project's dev mac
 | UI | vite | 8.3.0 | MIT | |
 | UI | @vitejs/plugin-react | 6.1.1 | MIT | Requires Vite ^8. |
 | UI | tailwindcss + @tailwindcss/vite | 4.3.3 | MIT | |
-| UI | radix-ui | 1.6.7 | MIT | Unified primitives package. |
+| UI | radix-ui | 1.1.23 / 1.1.23 / 1.2.16 / 1.1.21 / 2.3.7 / 1.2.20 | MIT | Primitives: Dialog, Popover, Tooltip, Tabs, Select, Accordion. |
 | UI | class-variance-authority / tailwind-merge / clsx | 0.7.1 / 3.7.0 / 2.1.1 | MIT | Styling utilities. |
 | UI | lucide-react | 1.47.0 | ISC | Icons. |
 | UI state | @reduxjs/toolkit | 2.12.0 | MIT | Redux Toolkit — UI state via slices (`createSlice`), store via `configureStore`. |
@@ -37,7 +37,7 @@ Versions below were resolved from the live npm registry on the project's dev mac
 | Globe | three | 0.186.0 | MIT | Satisfies globe.gl's `>=0.179 <1`. |
 | Geo | h3-js | 4.5.0 | Apache-2.0 | H3 core v4.5 parity. |
 | Geo | @turf/area | 7.4.0 | MIT | Prefer granular turf packages over the full `@turf/turf` meta-package. |
-| Geo | @turf/helpers, @turf/circle, @turf/boolean-point-in-polygon | 7.4.0 | MIT | Pull in as needed. |
+| Geo | @turf/helpers, @turf/circle, @turf/boolean-point-in-polygon, @turf/bbox, @turf/centroid, @turf/simplify, @turf/kinks | 7.4.0 | MIT | Granular turf packages for geometry, area, and containment. |
 | Graph | @xyflow/react | 12.11.6 | MIT | Peer `react >=17`. |
 | Graph | d3-force | 3.0.0 | ISC | Layout; `@types/d3-force` 3.0.10. |
 | Export | docx | 9.7.1 | MIT | DOCX generation. |
@@ -66,7 +66,7 @@ Versions below were resolved from the live npm registry on the project's dev mac
 
 ## ADR-0001 — TypeScript monorepo on npm workspaces
 
-**Status:** Accepted (TypeScript version Provisional)
+**Status:** Accepted (TypeScript 5.9.3 active via documented fallback for ESLint tooling compatibility)
 
 **Context.** Three deployables share one contract: the API, the SPA, and the geospatial/validation code. `pnpm` and `yarn` are not installed on the dev machine; `npm@12` is.
 
@@ -331,7 +331,7 @@ All renderers consume the same **export profile**: a JSON document naming the sc
 
 - **TanStack Query 5** owns all server data: caching, background refetch, and — critically — **invalidation by entity key**, so editing a character's name refreshes the graph and the timeline panels that read it. Mutation hooks in `features/<name>/api.ts`.
 - **Redux Toolkit 2** owns only ephemeral UI state, in small slices composed with `combineReducers` in `frontend/src/lib/stores/`: `timeline` (`asOf`), `map` (tool, camera, selection, draft cells), `view` (spoiler level, units, theme). Components read state through typed selectors and mutate it only by `dispatch`ing actions from `slice.actions`; reducers are written with `createSlice`'s Immer-powered "mutative" syntax but never mutate outside a reducer. Server data never enters the store. Access goes through the typed hooks (`useAppSelector`, `useAppDispatch`) exported next to `configureStore` — never the raw `react-redux` hooks.
-- **Tailwind CSS 4** (via `@tailwindcss/vite`) plus **Radix UI 1.6.7** primitives and `class-variance-authority`/`tailwind-merge`/`clsx`, following the shadcn/ui convention of *owning* the component source in `frontend/src/components/ui/`. Icons from `lucide-react`.
+- **Tailwind CSS 4** (via `@tailwindcss/vite`) plus **Radix UI 1.1.23** primitives (Dialog, Popover, Tooltip, Tabs, Select, Accordion) and `class-variance-authority`/`tailwind-merge`/`clsx`, following the shadcn/ui convention of *owning* the component source in `frontend/src/components/ui/`. Icons from `lucide-react`.
 - The frontend never computes a domain value (area, date order, duration, word count) that the backend also needs — it calls the API instead, so there is exactly one implementation.
 
 **Consequences.** Derived views (the relationship web) select `asOf` from the store *and* server data from Query, and recompute with `useMemo` at the store boundary. Because the globe is imperative (Three.js) while the rest of the app is declarative, the globe is the one component allowed to hold a renderer ref — bridged into React through `onGlobeReady` and a small imperative facade. Devtools come free (`@reduxjs/toolkit` ships `redux-devtools` support in `configureStore`), and the `dispatch`-centred flow keeps every state change greppable to its action creator.
